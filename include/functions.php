@@ -70,38 +70,3 @@ function check_pidfile($pidfile, $timeout = 3600)
 
   return false;
 }
-
-/**
- * Signal Handling
- * 
- * @since 0.1
- */
-function sig_handler($signo) 
-{
-  global $queue;
-  switch($signo)
-  {
-    case SIGTERM:
-      shutdown();
-      exit;
-      break;
-    case SIGHUP:
-      break;
-    default:
-      break;
-  }
-}
-
-pcntl_signal(SIGTERM, "sig_handler");
-pcntl_signal(SIGHUP,  "sig_handler");
-
-/**
- * Shutdown function
- * 
- * @since 0.1
- */
-function shutdown()
-{
-  global $queue;
-  $queue->disconnect();
-}
