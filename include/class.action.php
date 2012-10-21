@@ -63,7 +63,7 @@ Class Action
    * @param callback $function_to_call The name of the function you wish to be called.
    * @param int $priority optional. Used to specify the order in which the functions associated with a particular action are executed (default: 10). Lower numbers correspond with earlier execution, and functions with the same priority are executed in the order in which they were added to the action.
    */
-  function add($action_name, $function_to_call, $priority = 10) {
+  function add_action($action_name, $function_to_call, $priority = 10) {
     $this->actions[$action_name][$priority][] = $function_to_call;
     return true;
   }
