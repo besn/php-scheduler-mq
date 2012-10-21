@@ -23,7 +23,7 @@
  * Inspired by Wordpress' add_action() function.
  *
  * @author besn
- * @since 0.3
+ * @since 0.1
  *
  * @param string $tag The name of the action to which the $function_to_add is hooked.
  * @param callback $function_to_call The name of the function you wish to be called.
@@ -41,7 +41,7 @@ function add_action($action_name, $function_to_call, $priority = 10) {
  * Inspired by Wordpress' do_action() function.
  *
  * @author besn
- * @since 0.3
+ * @since 0.1
  * 
  * @param string $tag The name of the action to be executed.
  * @return null
