@@ -188,6 +188,17 @@ Options:
                 unset($output, $return_val, $line);
                 break;
 
+              case 'action':
+                if($action->action_exists($job['action_name']))
+                {
+                  $action->do_action($job['action_name'], $job['action_args']);
+                }
+                else
+                {
+                  syslog(LOG_ERR, 'unknown job action name: '.$job['action_name']);
+                }
+                break;
+
               default:
                 syslog(LOG_ERR, 'invalid job type: '.$job['type']);
                 break;
