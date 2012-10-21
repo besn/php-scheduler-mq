@@ -60,9 +60,12 @@ $queue = new Queue();
 require_once(dirname(__FILE__) . '/class.scheduler.php');
 $scheduler = new Scheduler();
 
+// loca the action class
+require_once(dirname(__FILE__) . '/class.action.php');
+$action = new Action();
+
 // load the functions
 require_once(dirname(__FILE__) . '/functions.php');
-require_once(dirname(__FILE__) . '/functions.action.php');
 
 // set the error level
 error_reporting( ((Config::get('app.debug', false) == true) ? E_ALL :  E_ERROR | E_WARNING | E_PARSE | E_USER_ERROR | E_USER_WARNING ) );
