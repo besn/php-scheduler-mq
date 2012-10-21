@@ -83,3 +83,16 @@ date_default_timezone_set(Config::get('app.timezone', 'Europe/Vienna'));
 
 // initialize the cache
 Cache::init();
+
+// load modules
+if(is_dir(dirname(__FILE__) . '/modules/'))
+{
+  foreach(glob(dirname(__FILE__) . '/modules/*.php' ) as $module_file)
+  {
+    require_once $module_file;
+  }
+}
+
+// run the init action
+$action->do_action('init');
+

@@ -94,18 +94,6 @@ Options:
     exit (0);
   }
 
-  // load modules
-  if(is_dir(dirname(__FILE__) . '/modules/'))
-  {
-    foreach(glob(dirname(__FILE__) . '/modules/*.php') as $module_file )
-    {
-      require_once $module_file;
-    }
-  }
-
-  // run the init action
-  $action->do_action('init');
-
   // set the working mode
   if(array_key_exists('--worker', $request))
   {
