@@ -59,13 +59,19 @@ Class Queue
         // Create a channel
         $this->amqp_channel = new AMQPChannel($this->amqp_connection);
 
-        // Declare a new exchange
+        // Create a new exchange
         $this->amqp_exchange = new AMQPExchange($this->amqp_channel);
         $this->amqp_exchange->setName(Config::get('amqp.exchange', 'exchange1'));
+        $this->amqp_exchange->setType(AMQP_EX_TYPE_TOPIC);
+        $this->amqp_exchange->setFlags(AMQP_DURABLE | AMQP_AUTODELETE);
+        $this->amqp_exchange->declare();
 
         // Create a new queue
         $this->amqp_queue = new AMQPQueue($this->amqp_channel);
         $this->amqp_queue->setName(Config::get('amqp.queue', 'queue1'));
+        $this->amqp_queue->setFlags(AMQP_DURABLE | AMQP_AUTODELETE);
+        $this->amqp_queue->bind(Config::get('amqp.exchange', 'exchange1'), Config::get('amqp.routing_key', 'routing.key'));
+        $this->amqp_queue->declare();
       }
     }
   }
@@ -86,7 +92,7 @@ Class Queue
     }
   }
 
-  public function send($text)
+  public function add($text)
   {
     if(Config::get('amqp.enabled', false) == true)
     {
@@ -108,7 +114,7 @@ Class Queue
     }
   }
 
-  public function receive()
+  public function get()
   {
     if(Config::get('amqp.enabled', false) == true)
     {
@@ -119,14 +125,31 @@ Class Queue
       if($this->amqp_connection->isConnected())
       {
         // Get a message from the queue
-        $amqp_message = $this->amqp_queue->get();
+        $amqp_message = $this->amqp_queue->get(AMQP_NOPARAM);
+        if(isset($amqp_message) && $amqp_message instanceof AMQPEnvelope)
+        {
+          // Return the message
+          return $amqp_message;
+        }
+      }
+    }
+    return false;
+  }
+
+  public function ack($amqp_message)
+  {
+    if(Config::get('amqp.enabled', false) == true)
+    {
+      if(!isset($this->amqp_connection) || !$this->amqp_connection->isConnected())
+      {
+        $this->connect();
+      }
+      if($this->amqp_connection->isConnected())
+      {
         if(isset($amqp_message) && $amqp_message instanceof AMQPEnvelope)
         {
           // Acknowledge the message
           $this->amqp_queue->ack($amqp_message->getDeliveryTag());
-          
-          // Return the message
-          return $amqp_message;
         }
       }
     }
