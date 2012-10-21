@@ -71,12 +71,7 @@ Options:
   }
 
   // set the working mode
-  if(array_key_exists('--feeder', $request))
-  {
-    Config::set('scheduler.workingmode', 'feeder', true);
-    $pidfile = Config::get('scheduler.varpath', '/var/tmp').'/'.Config::get('scheduler.feeder.pidfile', 'scheduler_feeder.pid');
-  }
-  else if(array_key_exists('--worker', $request))
+  if(array_key_exists('--worker', $request))
   {
     Config::set('scheduler.workingmode', 'worker', true);
     $pidfile = sprintf(Config::get('scheduler.varpath', '/var/tmp').'/'.Config::get('scheduler.worker.pidfile', 'scheduler_worker-%s.pid'), getmypid());
@@ -88,16 +83,6 @@ Options:
   }
 
   $scheduler->setMode(Config::get('scheduler.workingmode'));
-
-  /* else if(array_key_exists('--quit', $request)) {
-    Config::set('scheduler.workingmode', 'quitter', true);
-  } else if(array_key_exists('--watch', $request)) {
-    Config::set('scheduler.workingmode', 'watchdog', true);
-  } else if(array_key_exists('--notify', $request)) {
-    Config::set('scheduler.workingmode', 'notify', true);
-  } else if(array_key_exists('--cleanup', $request)) {
-    Config::set('scheduler.workingmode', 'cleanup', true);
-  } */
 
   if(Config::get('app.debug', false) == true)
   {
@@ -135,55 +120,81 @@ Options:
 
   switch(Config::get('scheduler.workingmode'))
   {
-    case 'feeder':
-      for($i=0;$i<=10;$i++)
-      {
-        $arr = array(
-          'rand' => rand(0,1000),
-        );
-        $queue->send(json_encode($arr));
-        unset($arr);
-      }
-      unset($i);
-      break;
-
     case 'worker':
-      // define some variables
-      $do_loop = true;
-      $loops_num = 0;
-      $loops_max = Config::get('scheduler.worker.loops.max', 1000);
-      $jobs_done = 0;
-      $jobs_max = Config::get('scheduler.worker.jobs.max', 200);
-      $worker_sleeptime = Config::get('scheduler.worker.sleeptime', 5);
-
-      // the job loop
-      while($do_loop != false)
+      $loopNum = 0;
+      $jobsDone = 0;
+      $workersSleepTime = Config::get('scheduler.workersleeptime', 1);
+      
+      while (Config::get('scheduler.doloop', true) == true)
       {
-        // increase the loop counter
-        $loops_num++;
+        // get the next message from the queue
+        $message = $queue->get();
 
-        // get a job from the message queue
-        $message = $queue->receive();
+        // acknowledge the message
+        $queue->ack($message);
+
+        // Check if the message is an AMQPEnvelope
         if($message instanceof AMQPEnvelope)
         {
-          syslog(LOG_DEBUG, $message->getBody());
-          $worker_sleeptime = Config::get('scheduler.worker.sleeptime', 5);
+          $message_body = $message->getBody();
+          $job = json_decode($message_body, true);
+          if(is_array($job))
+          {
+            switch($job['type'])
+            {
+              case 'function':
+                if(function_exists($job['function_name']))
+                {
+                  call_user_func($job['function_name'], $job['function_args']);
+                }
+                else
+                {
+                  syslog(LOG_ERR, 'unknown job function name: '.$job['function_name']);
+                }
+                break;
+
+              case 'shell':
+                exec($job['command'].' 2>&1', $output, $return_val);
+                if($return_val != 0) {
+                  syslog(LOG_ERR, 'error running command "'.$job['command'].'"');
+                }
+                foreach($output as $line) {
+                  syslog(LOG_DEBUG, "out: ".$line);
+                }
+                unset($output, $return_val, $line);
+                break;
+
+              default:
+                syslog(LOG_ERR, 'invalid job type: '.$job['type']);
+                break;
+            }
+            $jobsDone++;
+          }
+          else
+          {
+            syslog(LOG_ERR, 'invalid job data: '.var_export($message_body, true));
+          }
+          if(Config::get('app.debug', false) == true)
+          {
+            syslog(LOG_DEBUG, var_export($message_body, true));
+          }
+          $workersSleepTime = Config::get('scheduler.workersleeptime', 1);
+          unset($message_body, $job);
         }
         else
         {
-          sleep(rand(1, 2 + $worker_sleeptime++));
+          sleep(rand(1, 2 + $workersSleepTime++));
         }
         unset($message);
-
-        // when the maximum number of jobs or loops is reached
-        if($jobs_done >= $jobs_max || $loops_num >= $loops_max)
+        $loopNum++;
+        if($jobsDone >= Config::get('scheduler.maxjobs', 1000) || $loopNum >= Config::get('scheduler.maxloops', 1000))
         {
-          syslog(LOG_DEBUG, 'finished doing my work. did '.$config['SCHEDULER']['jobsDone'].'/'.$config['SCHEDULER']['workersMaxJobs'].' jobs and '.$config['SCHEDULER']['loopNum'].'/'.$config['SCHEDULER']['workersMaxLoops'].' loops');
-          $do_loop = false;
+          syslog(LOG_INFO, 'finished doing my work. did '.$jobsDone.'/'.Config::get('scheduler.maxjobs', 1000).' jobs and '.$loopNum.'/'.Config::get('scheduler.maxloops', 1000).' loops');
+          system($_SERVER['_'].' '.$_SERVER['SCRIPT_FILENAME'].' -- --worker >/dev/null 2>&1 &');
+          Config::set('scheduler.doloop', false);
         }
       }
-
-      unset($do_loop, $loops_num, $loops_max, $jobs_done, $jobs_max, $worker_sleeptime);
+      unset($loopNum, $jobsDone, $workersSleepTime);
       break;
 
     case 'watcher':
@@ -203,13 +214,13 @@ Options:
           }
 
           // Check if we have enough workers running
-          if(count($output) < Config::get('scheduler.worker.max_workers', 1))
+          if(count($output) < Config::get('scheduler.maxworkers', 1))
           {
             // Tell the user that we need to start $n workers
-            syslog(LOG_DEBUG, 'Need to start '.(Config::get('scheduler.worker.max_workers', 1) - count($output)).' workers');
+            syslog(LOG_DEBUG, 'Need to start '.(Config::get('scheduler.maxworkers', 1) - count($output)).' workers');
 
             // Start the workers
-            for($i = count($output); $i < Config::get('scheduler.worker.max_workers', 1); $i++)
+            for($i = count($output); $i < Config::get('scheduler.maxworkers', 1); $i++)
             {
               system($_SERVER['_'].' '.$_SERVER['SCRIPT_FILENAME'].' -- --worker >/dev/null 2>&1 &');
             }
@@ -218,8 +229,6 @@ Options:
       }
       break;
   }
-
-  shutdown();
 
   // Check if we have a pidfile
   if(isset($pidfile))
