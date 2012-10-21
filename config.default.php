@@ -26,6 +26,11 @@ Config::set('app.version.complete', Config::get('app.version.major', 0).'.'.Conf
 Config::set('app.encoding', 'UTF-8');
 Config::set('app.debug', false);
 
+Config::set('scheduler.doloop', true);
+Config::set('scheduler.maxloops', 1000);
+Config::set('scheduler.maxjobs', 1000);
+Config::set('scheduler.workersleeptime', 1);
+
 Config::set('memcached.enabled', true);
 Config::set('memcached.host', '127.0.0.1');
 Config::set('memcached.port', '11211');
@@ -34,3 +39,6 @@ Config::set('amqp.enabled', true);
 Config::set('amqp.host', '127.0.0.1');
 Config::set('amqp.user', 'scheduler');
 Config::set('amqp.pass', 'scheduler');
+Config::set('amqp.exchange', 'schedulerExchange');
+Config::set('amqp.queue', 'schedulerQueue');
+Config::get('amqp.routing_key', 'scheduler.key');
